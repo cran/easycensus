@@ -1,6 +1,6 @@
 Package: easycensus
-Title: Quickly Extract and Marginalize U.S. Census Tables
-Version: 0.2.1
+Title: Quickly Find, Extract, and Marginalize U.S. Census Tables
+Version: 1.0.0
 Authors@R: 
     person("Cory", "McCartan", email="cmccartan@g.harvard.edu", role=c("aut", "cre"))
 Description: Extracting desired data using the proper Census variable names can 
@@ -8,18 +8,21 @@ Description: Extracting desired data using the proper Census variable names can
     providing functions to quickly locate variables and download labeled tables 
     from the Census APIs (<https://www.census.gov/data/developers/data-sets.html>).
 Depends: R (>= 2.10)
-Imports: rlang, dplyr (>= 1.0.0), stringr, tidycensus, cli
-Suggests: testthat (>= 3.0.0), sf, purrr
+Imports: rlang, vctrs, pillar, dplyr (>= 1.0.0), tidyr (>= 1.0.0),
+        stringr, censusapi, cli
+Suggests: posterior, testthat (>= 3.0.0)
 License: MIT + file LICENSE
 Encoding: UTF-8
-RoxygenNote: 7.1.2
-URL: https://corymccartan.github.io/easycensus/
+LazyData: true
+RoxygenNote: 7.2.1
+URL: https://corymccartan.com/easycensus/,
+        https://github.com/CoryMcCartan/easycensus/
 BugReports: https://github.com/CoryMcCartan/easycensus/issues
 Config/testthat/edition: 3
 Language: en-US
 NeedsCompilation: no
-Packaged: 2022-02-24 19:42:19 UTC; cmccartan
+Packaged: 2022-08-25 17:13:28 UTC; cmccartan
 Author: Cory McCartan [aut, cre]
 Maintainer: Cory McCartan <cmccartan@g.harvard.edu>
 Repository: CRAN
-Date/Publication: 2022-02-28 19:20:02 UTC
+Date/Publication: 2022-08-25 17:42:35 UTC

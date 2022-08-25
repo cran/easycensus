@@ -1,16 +1,17 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# **easycensus** <a href="https://corymccartan.github.io/easycensus/"><img src="man/figures/logo.png" align="right" height="138" /></a>
+# **easycensus** <a href="https://corymccartan.com/easycensus/"><img src="man/figures/logo.png" align="right" height="138" /></a>
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/CoryMcCartan/easycensus/workflows/R-CMD-check/badge.svg)](https://github.com/CoryMcCartan/easycensus/actions)
-[![Lifecycle:
-experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![CRAN
+status](https://www.r-pkg.org/badges/version/easycensus)](https://CRAN.R-project.org/package=easycensus)
 [![License:
 MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
+[![R-CMD-check](https://github.com/CoryMcCartan/easycensus/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/CoryMcCartan/easycensus/actions/workflows/R-CMD-check.yaml)
+[![Lifecycle:
+stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
 <!-- badges: end -->
 
 Extracting desired data using the proper Census variable names can be
@@ -27,18 +28,20 @@ information from.
 Unless you’re a Census pro, you won’t know what exactly what is off the
 top of your head. But suppose you know you’d like to get the data from
 the decennial census, since it covers the whole nation and asks about
-age and race. `easycensus` provides the `find_dec_table()` function to
+age and race. `easycensus` provides the `cens_find_dec()` function to
 help you locate exactly which decennial census table to use to get the
 data you want.
 
 ``` r
 library(easycensus)
 
-find_dec_table(age, race)
+cens_find_dec(age, race)
 #> 
 #> ── Top 2 matching tables ───────────────────────────────────────────────────────
 #> 
-#>  P012  - SEX BY AGE
+#>  P12  - SEX BY AGE
+#> Surveys / Files:
+#> ✔ Decennial / Summary File 1
 #> Parsed variables:
 #> • sex
 #> • age
@@ -48,7 +51,9 @@ find_dec_table(age, race)
 #> • female / 20 years / two or more races
 #> • male / 55 to 59 years / american indian and alaska native alone
 #> 
-#>  PCT012  - SEX BY AGE
+#>  PCT12  - SEX BY AGE
+#> Surveys / Files:
+#> ✔ Decennial / Summary File 1
 #> Parsed variables:
 #> • sex
 #> • age
@@ -59,39 +64,36 @@ find_dec_table(age, race)
 #> • female / 30 years / two or more races
 ```
 
-We can see right away that our best bet is either table `P012` or table
-`PCT012`, depending on whether we want age in 5-year groups or down to
+We can see right away that our best bet is either table `P12` or table
+`PCT12`, depending on whether we want age in 5-year groups or down to
 individual years. Let’s say you’re OK with the five-year bins. Then all
-you need to do to get your data is to call `get_dec_table()`.
+you need to do to get your data is to call `cens_get_dec()`.
 
 ``` r
-d_cens = get_dec_table("tract", "P012", state="AK", county="Nome")
+d_cens = cens_get_dec("P12", "tract", state="AK", county="Nome")
 print(d_cens)
-#> # A tibble: 9,600 × 7
-#>    GEOID       NAME                    variable value sex   age   race_ethnicity
-#>    <chr>       <chr>                   <chr>    <dbl> <fct> <fct> <fct>         
-#>  1 02180000100 Census Tract 1, Nome C… P012002   3053 male  total total         
-#>  2 02180000200 Census Tract 2, Nome C… P012002   2005 male  total total         
-#>  3 02180000100 Census Tract 1, Nome C… P012003    359 male  unde… total         
-#>  4 02180000200 Census Tract 2, Nome C… P012003    175 male  unde… total         
-#>  5 02180000100 Census Tract 1, Nome C… P012004    318 male  5 to… total         
-#>  6 02180000200 Census Tract 2, Nome C… P012004    132 male  5 to… total         
-#>  7 02180000100 Census Tract 1, Nome C… P012005    294 male  10 t… total         
-#>  8 02180000200 Census Tract 2, Nome C… P012005    161 male  10 t… total         
-#>  9 02180000100 Census Tract 1, Nome C… P012006    165 male  15 t… total         
-#> 10 02180000200 Census Tract 2, Nome C… P012006     90 male  15 t… total         
-#> # … with 9,590 more rows
+#> # A tibble: 960 × 7
+#>    GEOID       NAME                            varia…¹ value sex   age   race_…²
+#>    <chr>       <chr>                           <chr>   <dbl> <fct> <fct> <fct>  
+#>  1 02180000100 Census Tract 1, Nome Census Ar… P012002  3053 male  total total  
+#>  2 02180000100 Census Tract 1, Nome Census Ar… P012003   359 male  unde… total  
+#>  3 02180000100 Census Tract 1, Nome Census Ar… P012004   318 male  5 to… total  
+#>  4 02180000100 Census Tract 1, Nome Census Ar… P012005   294 male  10 t… total  
+#>  5 02180000100 Census Tract 1, Nome Census Ar… P012006   165 male  15 t… total  
+#>  6 02180000100 Census Tract 1, Nome Census Ar… P012007   130 male  18 a… total  
+#>  7 02180000100 Census Tract 1, Nome Census Ar… P012008    53 male  20 y… total  
+#>  8 02180000100 Census Tract 1, Nome Census Ar… P012009    47 male  21 y… total  
+#>  9 02180000100 Census Tract 1, Nome Census Ar… P012010   150 male  22 t… total  
+#> 10 02180000100 Census Tract 1, Nome Census Ar… P012011   204 male  25 t… total  
+#> # … with 950 more rows, and abbreviated variable names ¹​variable,
+#> #   ²​race_ethnicity
+#> # ℹ Use `print(n = ...)` to see more rows
 ```
-
-`easycensus` is built on top of the great
-[`tidycensus`](https://walker-data.com/tidycensus/) package, so all of
-the usual arguments to those functions (including the ability to get
-shapefile information) work here, too.
 
 Once you’ve gotten your labeled data, it’s easy to marginalize out the
 unneeded `sex` variable. You can either use `group_by()` and
-`summarize()` as usual, or you can use the `marginalize()` function in
-`easycensus`. This has the added advantage of automatically handling
+`summarize()` as usual, or you can use the `cens_margin_to()` function
+in `easycensus`. This has the added advantage of automatically handling
 margins of error for ACS data.
 
 ``` r
@@ -100,23 +102,23 @@ library(dplyr)
 d_cens = d_cens %>%
     # Drop table margins. Can also use `drop_total=TRUE` in `get_dec_table()`
     filter(age != "total", race_ethnicity != "total") %>%
-    marginalize(age, race=race_ethnicity)
+    cens_margin_to(age, race=race_ethnicity)
 print(d_cens)
 #> # A tibble: 414 × 5
-#> # Groups:   GEOID, NAME, age [46]
 #>    GEOID       NAME                                     age          race  value
 #>    <chr>       <chr>                                    <fct>        <fct> <dbl>
-#>  1 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… amer…  5240
-#>  2 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… asia…    10
-#>  3 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… blac…    10
-#>  4 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… hisp…    30
+#>  1 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… amer…   524
+#>  2 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… asia…     1
+#>  3 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… blac…     1
+#>  4 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… hisp…     3
 #>  5 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… nati…     0
 #>  6 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… some…     0
-#>  7 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… two …   230
-#>  8 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… whit…   110
-#>  9 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… whit…   100
-#> 10 02180000100 Census Tract 1, Nome Census Area, Alaska 15 to 17 ye… amer…  2930
+#>  7 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… two …    23
+#>  8 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… whit…    11
+#>  9 02180000100 Census Tract 1, Nome Census Area, Alaska 10 to 14 ye… whit…    10
+#> 10 02180000100 Census Tract 1, Nome Census Area, Alaska 15 to 17 ye… amer…   293
 #> # … with 404 more rows
+#> # ℹ Use `print(n = ...)` to see more rows
 ```
 
 Finally, you might want to simplify the age and race labels, since they
@@ -128,40 +130,37 @@ d_cens %>%
     mutate(race = tidy_race(race),
            tidy_age_bins(age))
 #> # A tibble: 414 × 7
-#> # Groups:   GEOID, NAME, age [46]
-#>    GEOID       NAME                            age   race  value age_from age_to
-#>    <chr>       <chr>                           <fct> <fct> <dbl>    <dbl>  <dbl>
-#>  1 02180000100 Census Tract 1, Nome Census Ar… 10 t… aian   5240       10     14
-#>  2 02180000100 Census Tract 1, Nome Census Ar… 10 t… asian    10       10     14
-#>  3 02180000100 Census Tract 1, Nome Census Ar… 10 t… black    10       10     14
-#>  4 02180000100 Census Tract 1, Nome Census Ar… 10 t… hisp     30       10     14
-#>  5 02180000100 Census Tract 1, Nome Census Ar… 10 t… nhpi      0       10     14
-#>  6 02180000100 Census Tract 1, Nome Census Ar… 10 t… other     0       10     14
-#>  7 02180000100 Census Tract 1, Nome Census Ar… 10 t… two     230       10     14
-#>  8 02180000100 Census Tract 1, Nome Census Ar… 10 t… white   110       10     14
-#>  9 02180000100 Census Tract 1, Nome Census Ar… 10 t… whit…   100       10     14
-#> 10 02180000100 Census Tract 1, Nome Census Ar… 15 t… aian   2930       15     17
-#> # … with 404 more rows
+#>    GEOID       NAME                             age   race  value age_f…¹ age_to
+#>    <chr>       <chr>                            <fct> <fct> <dbl>   <dbl>  <dbl>
+#>  1 02180000100 Census Tract 1, Nome Census Are… 10 t… aian    524      10     14
+#>  2 02180000100 Census Tract 1, Nome Census Are… 10 t… asian     1      10     14
+#>  3 02180000100 Census Tract 1, Nome Census Are… 10 t… black     1      10     14
+#>  4 02180000100 Census Tract 1, Nome Census Are… 10 t… hisp      3      10     14
+#>  5 02180000100 Census Tract 1, Nome Census Are… 10 t… nhpi      0      10     14
+#>  6 02180000100 Census Tract 1, Nome Census Are… 10 t… other     0      10     14
+#>  7 02180000100 Census Tract 1, Nome Census Are… 10 t… two      23      10     14
+#>  8 02180000100 Census Tract 1, Nome Census Are… 10 t… white    11      10     14
+#>  9 02180000100 Census Tract 1, Nome Census Are… 10 t… whit…    10      10     14
+#> 10 02180000100 Census Tract 1, Nome Census Are… 15 t… aian    293      15     17
+#> # … with 404 more rows, and abbreviated variable name ¹​age_from
+#> # ℹ Use `print(n = ...)` to see more rows
 ```
 
 Dive into the
-[reference](https://corymccartan.github.io/easycensus/reference/) to
-learn more!
+[reference](https://corymccartan.com/easycensus/reference/) to learn
+more!
 
 ## Installation
 
-<!-- 
-You can install the released version of easycensus from [CRAN](https://CRAN.R-project.org) with:
+You can install the released version of easycensus from
+[CRAN](https://CRAN.R-project.org) with:
 
 ``` r
 install.packages("easycensus")
 ```
 
-And the development version from [GitHub](https://github.com/) with:
--->
-
-You can install the development version from
-[GitHub](https://github.com/) with:
+Or install the development version from [GitHub](https://github.com/)
+with:
 
 ``` r
 # install.packages("devtools")
