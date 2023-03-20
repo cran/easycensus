@@ -24,6 +24,12 @@
 #' @param survey For ACS data, whether to use the one-year or
 #'   five-year survey (the default). Make sure to check availability using
 #'   [cens_find_acs()].
+#' @param sumfile For decennial data, the summary file to use. SF2 contains more
+#'   detailed race and household info.
+#' @param api A Census API programmatic name such as `"acs/acs5"`.
+#' @param pop_group For decennial data using summary file SF2, the population
+#'   group to filter to. See
+#'   <https://www2.census.gov/programs-surveys/decennial/2010/technical-documentation/complete-tech-docs/summary-file/sf2.pdf#page=347>.
 #' @param check_geo If `TRUE`, validate the provided geographies against the
 #'   available geographies from the relevant Census API.
 #' @param drop_total Whether to filter out variables which are totals across
@@ -34,7 +40,7 @@
 #'
 #' @returns A tibble of census data in tidy format, with columns
 #'   `GEOID`, `NAME`, `variable` (containing the Census variable code),
-#'   `value` or `estiamte`, `moe` in the case of ACS tables,
+#'   `value` or `estimate` in the case of ACS tables,
 #'   and additional factor columns specific to the table.
 #'
 #' @examples \dontrun{
@@ -48,9 +54,62 @@
 #' @name cens_get
 NULL
 
-#' @rdname cens_get
+
+#' @describeIn cens_get Get raw data from another Census Bureau API. Output will
+#'   be minimally tidied but will likely require further manipulation.
+#' @order 3
 #' @export
-cens_get_dec <- function(table, geo=NULL, ..., check_geo=FALSE, drop_total=FALSE, show_call=FALSE) {
+cens_get_raw <- function(table, geo=NULL, ..., year=2010, api=NULL,
+                         check_geo=FALSE, show_call=TRUE) {
+    if (inherits(table, "cens_table")) {
+        if (!is.null(api) && !api %in% table$surveys)
+            cli_abort("Table {.field {table$tables[1]}} not found for the provided api {.val {api}}.")
+        spec = table
+        table = spec$tables[1]
+    } else {
+        cli_abort("For {.fn cens_get_raw}, {.arg table} must be a
+                  {.cls cens_table} object.")
+    }
+
+    if (is.null(api)) {
+        if (length(spec$surveys) > 1) {
+            cli_abort(c("Table {.field {table}} exists for multiple Census products.",
+                        ">"="Please specify the correct one with {.arg api}"))
+        } else {
+            api = spec$surveys[1]
+        }
+    }
+
+    geo_spec = cens_geo(geo, ..., check=check_geo, api=api, year=year)
+
+    caller = rlang::current_call()
+    suppressMessages({
+        withCallingHandlers({
+            d = do.call(dplyr::bind_rows, lapply(spec$tables, function(tbl_code) {
+                load_raw(api, year, tbl_code, geo_spec, show_call=show_call)
+            }))
+        },
+        warning = function(w) {
+            if (w$message != "NAs introduced by coercion") {
+                rlang::warn(w$message)
+            } else {
+                invokeRestart("muffleWarning")
+            }
+        },
+        error = function(e) {
+            rlang::abort(e$message, call=caller)
+        })
+    })
+
+    tbl_vars = spec$vars
+    dplyr::inner_join(d, tbl_vars, by="variable")
+}
+
+#' @describeIn cens_get Get decennial census data.
+#' @order 1
+#' @export
+cens_get_dec <- function(table, geo=NULL, ..., sumfile="sf1", pop_group=NULL,
+                         check_geo=FALSE, drop_total=FALSE, show_call=FALSE) {
     if (is.character(table) && length(table) == 1L) {
         if (!table %in% names(tables_sf1))
             cli_abort("Table {.field {table}} not found.")
@@ -64,13 +123,14 @@ cens_get_dec <- function(table, geo=NULL, ..., check_geo=FALSE, drop_total=FALSE
         cli_abort("{.arg table} must be a character vector or {.cls cens_table}.")
     }
 
-    geo_spec = cens_geo(geo, ..., check=check_geo, api="dec/sf1", year=2010)
+    api = str_c("dec/", sumfile)
+    geo_spec = cens_geo(geo, ..., check=check_geo, api=api, year=2010)
 
     caller = rlang::current_call()
     suppressMessages({
     withCallingHandlers({
         d = do.call(dplyr::bind_rows, lapply(spec$tables, function(tbl_code) {
-            load_dec("dec/sf1", 2010, tbl_code, geo_spec, show_call=show_call)
+            load_dec(api, 2010, tbl_code, geo_spec, pop_group=pop_group, show_call=show_call)
         }))
     },
     warning = function(w) {
@@ -91,7 +151,8 @@ cens_get_dec <- function(table, geo=NULL, ..., check_geo=FALSE, drop_total=FALSE
     dplyr::inner_join(d, tbl_vars, by="variable")
 }
 
-#' @rdname cens_get
+#' @describeIn cens_get Get American Community Survey (ACS) data.
+#' @order 2
 #' @export
 cens_get_acs <- function(table, geo=NULL, ..., year=2019, survey=c("acs5", "acs1"),
                          check_geo=FALSE, drop_total=FALSE, show_call=FALSE) {
@@ -141,9 +202,8 @@ cens_get_acs <- function(table, geo=NULL, ..., year=2019, survey=c("acs5", "acs1
 }
 
 
-
 # Internal: get Census data and tidy-format
-load_dec <- function(api, year, tbl, geo_spec, show_call=FALSE) {
+load_raw <- function(api, year, tbl, geo_spec, show_call=TRUE) {
     d = censusapi::getCensus(api, year, key=cens_auth(),
                              vars=str_glue("group({tbl})"),
                              region=geo_spec$region, regionin=geo_spec$regionin,
@@ -153,9 +213,47 @@ load_dec <- function(api, year, tbl, geo_spec, show_call=FALSE) {
     d = d[, str_starts(colnames(d), "[a-z]", negate=TRUE)]
     d$GEO_ID = str_sub(d$GEO_ID, 10)
 
-    dplyr::select(d, GEOID=.data$GEO_ID, .data$NAME,
+    rgx_tbl = str_replace_all(tbl, "\\d", "\\\\d") # make a regex which matches table variables
+    pivot_ids = union( # the remaining other columns to use as ID cols in pivoting
+        c("GEO_ID", "NAME"),
+        colnames(d)[str_starts(colnames(d), rgx_tbl, negate=TRUE)]
+    )
+
+    dplyr::select(d, "GEO_ID", "NAME",
                   dplyr::everything(), -dplyr::ends_with("ERR")) %>%
-        tidyr::pivot_longer(-c("GEOID", "NAME"),
+        tidyr::pivot_longer(-dplyr::all_of(pivot_ids),
+                            names_to="variable", values_to="value") %>%
+        dplyr::rename(GEOID="GEO_ID", race_ethnicity=dplyr::any_of("POPGROUP_TTL"))
+}
+
+load_dec <- function(api, year, tbl, geo_spec, pop_group=NULL, show_call=FALSE) {
+    d = censusapi::getCensus(api, year, key=cens_auth(),
+                             vars=str_glue("group({tbl})"),
+                             region=geo_spec$region, regionin=geo_spec$regionin,
+                             show_call=show_call) %>%
+        as_tibble()
+
+    d = d[, str_starts(colnames(d), "[a-z]", negate=TRUE)]
+    d$GEO_ID = str_sub(d$GEO_ID, 10)
+
+    pivot_ids = c("GEOID", "NAME")
+    if (api == "dec/sf2") {
+        if (is.null(pop_group)) {
+            pivot_ids = c("GEOID", "NAME", "race_ethnicity")
+            d = dplyr::select(d, -.data$POPGROUP) %>%
+                dplyr::rename(race_ethnicity = .data$POPGROUP_TTL)
+        } else {
+            if (!is.character(pop_group) || length(pop_group) != 1) {
+                cli_abort("{.arg pop_group} must be a length-1 character vector, or NULL")
+            }
+            d = dplyr::filter(d, .data$POPGROUP == pop_group) %>%
+                dplyr::select(-.data$POPGROUP, -.data$POPGROUP_TTL)
+        }
+    }
+
+    dplyr::select(d, GEOID="GEO_ID", "NAME",
+                  dplyr::everything(), -dplyr::ends_with("ERR")) %>%
+        tidyr::pivot_longer(-dplyr::all_of(pivot_ids),
                             names_to="variable", values_to="value")
 }
 
@@ -165,15 +263,19 @@ load_acs <- function(api, year, tbl, geo_spec, show_call=FALSE) {
                              vars=str_glue("group({tbl})"),
                              region=geo_spec$region, regionin=geo_spec$regionin,
                              show_call=show_call) %>%
+        # dplyr::mutate(dplyr::across(dplyr::where(~ all(is.na(.))), as.numeric)) %>%
+        dplyr::mutate(dplyr::across(c(
+            dplyr::ends_with("_EA"), dplyr::ends_with("_MA")
+        ), as.character)) %>%
         as_tibble()
 
     d = d[, str_starts(colnames(d), "[a-z]", negate=TRUE)]
     d$GEO_ID = str_sub(d$GEO_ID, 10)
 
-    dplyr::select(d, GEOID=.data$GEO_ID, .data$NAME,
+    dplyr::select(d, GEOID="GEO_ID", "NAME",
                   dplyr::everything(), -dplyr::ends_with("ERR")) %>%
         tidyr::pivot_longer(-c("GEOID", "NAME"),
-                            names_pattern="([A-Z][0-9_]+)([A-Z]+)",
+                            names_pattern="([A-Z][0-9]+[A-Z]?[0-9_]+)([A-Z]+)",
                             names_to=c("variable", ".value")) %>%
         dplyr::mutate(variable = str_c(.data$variable, "E"),
                       E = dplyr::case_when(.data$EA == "-" ~ NA_real_,
@@ -189,5 +291,5 @@ load_acs <- function(api, year, tbl, geo_spec, show_call=FALSE) {
                                            is.na(.data$MA) ~ .data$M,
                                            TRUE ~ .data$M),
                       value = estimate(.data$E, .data$M)) %>%
-        dplyr::select(.data$GEOID, .data$NAME, .data$variable, .data$value)
+        dplyr::select("GEOID", "NAME", "variable", estimate="value")
 }
